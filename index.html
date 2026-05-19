@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Sales Visit Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#f7f6f3;--surface:#fff;--surface2:#f0ede8;--border:#e2ddd7;--border2:#cdc8c0;
+  --text:#1a1815;--text2:#6b6560;--text3:#9c9690;
+  --blue:#2563eb;--blue-bg:#eff6ff;--blue-tx:#1d4ed8;
+  --yellow:#d97706;--yellow-bg:#fffbeb;--yellow-tx:#92400e;
+  --green:#16a34a;--green-bg:#f0fdf4;--green-tx:#15803d;
+  --red:#dc2626;--red-bg:#fef2f2;--red-tx:#b91c1c;
+  --purple:#7c3aed;--purple-bg:#f5f3ff;--purple-tx:#5b21b6;
+  --radius:8px;--radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+  --shadow-lg:0 4px 16px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
+body{display:flex;flex-direction:column;overflow:hidden}
+
+/* OVERLAYS */
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;overflow-y:auto;padding:20px;display:flex;align-items:flex-start;justify-content:center}
+.overlay.hidden{display:none}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px 24px;max-width:420px;width:100%;margin:auto;box-shadow:var(--shadow-lg)}
+.card-logo{width:40px;height:40px;background:var(--text);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.card-logo svg{width:22px;height:22px;fill:white}
+.card h1{font-size:20px;font-weight:600;margin-bottom:6px;text-align:center}
+.card p{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:22px;text-align:center}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.field input{width:100%;font-size:14px;font-family:'DM Sans',sans-serif;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:none;transition:border-color .15s}
+.field input:focus{border-color:var(--blue)}
+.login-err{font-size:12px;color:var(--red);min-height:16px;margin-bottom:8px;text-align:center;font-weight:500}
+.primary-btn{width:100%;padding:12px;background:var(--text);color:white;border:none;border-radius:var(--radius);font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:opacity .15s}
+.primary-btn:hover{opacity:.85}
+.secondary-btn{width:100%;padding:9px;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:8px;transition:background .15s}
+.secondary-btn:hover{background:var(--surface2)}
+.setup-steps{margin-bottom:18px}
+.step{display:flex;gap:10px;margin-bottom:11px;align-items:flex-start}
+.step-num{width:20px;height:20px;border-radius:50%;background:var(--text);color:white;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-body{font-size:12px;color:var(--text2);line-height:1.5}
+.step-body strong{color:var(--text);font-weight:600}
+.step-body a{color:var(--blue);text-decoration:none}
+.s-hint{font-size:11px;min-height:14px;margin-top:4px;color:var(--text3)}
+.s-hint.err{color:var(--red)}.s-hint.ok{color:var(--green)}
+
+/* HEADER */
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 14px;height:50px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:100}
+.hd-left{display:flex;align-items:center;gap:8px;min-width:0}
+.logo{width:28px;height:28px;border-radius:6px;background:var(--text);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo svg{width:15px;height:15px;fill:white}
+.app-name{font-size:13px;font-weight:600;white-space:nowrap}
+.user-badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;border:1px solid;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px}
+.user-badge.admin{background:#fef9c3;color:#854d0e;border-color:#fde68a}
+.user-badge.sales{background:var(--blue-bg);color:var(--blue-tx);border-color:#bfdbfe}
+.hd-right{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.sync-pill{font-size:10px;font-family:'DM Mono',monospace;padding:3px 7px;border-radius:999px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);white-space:nowrap}
+.sync-pill.syncing{background:#fffbeb;color:#92400e;border-color:#fde68a}
+.sync-pill.synced{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.sync-pill.error{background:#fef2f2;color:#b91c1c;border-color:#fca5a5}
+.icon-btn{width:30px;height:30px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:background .15s;flex-shrink:0}
+.icon-btn:hover{background:var(--surface2)}
+.tab-btn{padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;font-size:11px;font-weight:500;color:var(--text2);font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
+.tab-btn.active{background:var(--text);color:white;border-color:var(--text)}
+.tab-btn:hover:not(.active){background:var(--surface2)}
+
+/* MAIN */
+.main{display:flex;flex:1;overflow:hidden;min-height:0}
+
+/* SIDEBAR */
+.sidebar{width:310px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.legend{display:flex;gap:6px;flex-wrap:wrap;padding:7px 12px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
+.leg{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text2)}
+.ldot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+.form-panel{padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-y:auto;max-height:65vh}
+.panel-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+.f{margin-bottom:7px}
+.f label{display:block;font-size:10px;font-weight:500;color:var(--text2);margin-bottom:2px}
+.f input,.f textarea,.f select{width:100%;font-size:12px;font-family:'DM Sans',sans-serif;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:none;transition:border-color .15s}
+.f input:focus,.f textarea:focus,.f select:focus{border-color:var(--blue)}
+.f textarea{resize:vertical;height:44px}
+.f-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.loc-row{display:flex;gap:4px;align-items:center}
+.loc-row input{flex:1}
+.gps-btn{flex-shrink:0;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;font-size:13px;line-height:1;transition:background .15s}
+.gps-btn:hover{background:var(--surface2)}
+.geo-hint{font-size:10px;min-height:12px;margin-top:2px;color:var(--text3)}
+.geo-hint.ok{color:var(--green)}.geo-hint.err{color:var(--red)}
+.status-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.sbtn{padding:5px 5px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:10px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:3px;background:var(--surface);color:var(--text2);transition:all .12s;font-family:'DM Sans',sans-serif}
+.sbtn.sel-first{border-color:var(--blue);background:var(--blue-bg);color:var(--blue-tx)}
+.sbtn.sel-followup{border-color:var(--yellow);background:var(--yellow-bg);color:var(--yellow-tx)}
+.sbtn.sel-won{border-color:var(--green);background:var(--green-bg);color:var(--green-tx)}
+.sbtn.sel-lost{border-color:var(--red);background:var(--red-bg);color:var(--red-tx)}
+.sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.photo-upload{border:1.5px dashed var(--border2);border-radius:var(--radius);padding:8px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--surface2)}
+.photo-upload:hover{border-color:var(--blue)}
+.photo-upload input{display:none}
+.photo-preview{width:100%;max-height:80px;object-fit:cover;border-radius:var(--radius);margin-top:5px;display:none}
+.add-btn{width:100%;margin-top:7px;padding:8px;background:var(--text);color:white;border:none;border-radius:var(--radius);font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:4px}
+.add-btn:hover{opacity:.85}
+.add-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.admin-filter{padding:7px 12px;border-bottom:1px solid var(--border);background:#fffbeb;flex-shrink:0;display:none}
+.admin-filter label{font-size:10px;font-weight:600;color:#92400e;display:block;margin-bottom:3px}
+.admin-filter select{width:100%;font-size:12px;font-family:'DM Sans',sans-serif;padding:5px 7px;border:1px solid #fde68a;border-radius:var(--radius);background:white;color:var(--text);outline:none}
+
+.visits-panel{flex:1;overflow-y:auto;padding:8px 12px;min-height:0;-webkit-overflow-scrolling:touch}
+.vp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;flex-shrink:0}
+.vp-header span{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.empty{text-align:center;padding:20px 10px;color:var(--text3);font-size:11px;line-height:1.6}
+.empty svg{width:24px;height:24px;opacity:.3;margin-bottom:6px;display:block;margin-left:auto;margin-right:auto}
+.vcard{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:5px;cursor:pointer;transition:border-color .15s;position:relative}
+.vcard:hover{border-color:var(--border2)}
+.vcard.active{border-color:var(--blue)}
+.vcard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:5px}
+.vcard-name{font-size:12px;font-weight:600;color:var(--text)}
+.badge{font-size:9px;font-weight:600;padding:2px 6px;border-radius:999px;white-space:nowrap;flex-shrink:0}
+.vcard-loc{font-size:10px;color:var(--text2);margin-top:2px}
+.vcard-value{font-size:10px;font-weight:600;color:var(--green-tx);margin-top:2px}
+.vcard-reminder{font-size:10px;color:var(--yellow-tx);margin-top:2px;background:var(--yellow-bg);padding:1px 6px;border-radius:4px;display:inline-block}
+.vcard-note{font-size:10px;color:var(--text3);margin-top:2px;font-style:italic}
+.vcard-meta{font-size:9px;color:var(--text3);margin-top:2px;font-family:'DM Mono',monospace}
+.vcard-img{width:100%;max-height:70px;object-fit:cover;border-radius:var(--radius);margin-top:5px;display:none}
+.vcard-actions{display:none;gap:3px;margin-top:5px;flex-wrap:wrap;position:relative}
+.vcard:hover .vcard-actions{display:flex}
+.va-btn{font-size:10px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .1s}
+.va-btn:hover{background:var(--surface);border-color:var(--border2)}
+.va-btn.del:hover{background:var(--red-bg);color:var(--red-tx);border-color:#fca5a5}
+.status-popup{display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:4px;box-shadow:var(--shadow-lg);z-index:50;grid-template-columns:1fr 1fr;gap:3px;width:175px}
+.status-popup.open{display:grid}
+.sp-btn{display:flex;align-items:center;gap:4px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);font-size:10px;font-weight:500;cursor:pointer;background:var(--surface2);color:var(--text2);font-family:'DM Sans',sans-serif}
+.sp-btn:hover{background:var(--surface);border-color:var(--border2)}
+
+/* MAP */
+.map-wrap{flex:1;position:relative;min-width:0}
+#map{width:100%;height:100%}
+.stats-overlay{position:absolute;top:10px;right:10px;z-index:400;background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:7px 10px;box-shadow:var(--shadow-lg);display:flex;gap:8px}
+.stat{text-align:center}
+.stat-n{font-size:15px;font-weight:600;line-height:1}
+.stat-l{font-size:9px;color:var(--text3);margin-top:1px;font-family:'DM Mono',monospace}
+
+/* DASHBOARD */
+.dashboard{flex:1;overflow-y:auto;padding:16px;display:none;-webkit-overflow-scrolling:touch}
+.dashboard.visible{display:block}
+.dash-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px}
+.pipeline-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:12px}
+.pipeline-card h3{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:var(--surface2);border-radius:var(--radius);padding:10px 8px;text-align:center}
+.kpi-n{font-size:18px;font-weight:600;color:var(--text)}
+.kpi-l{font-size:10px;color:var(--text3);margin-top:2px}
+.person-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border)}
+.person-row:last-child{border-bottom:none}
+.person-name{font-size:12px;font-weight:600;color:var(--text);width:60px;flex-shrink:0}
+.person-bars{flex:1;display:flex;gap:3px;align-items:center}
+.mini-bar{height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:white;min-width:16px;padding:0 4px;transition:width .3s}
+.person-value{font-size:11px;font-weight:600;color:var(--green-tx);width:70px;text-align:right;flex-shrink:0}
+.reminder-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:12px}
+.reminder-section h3{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.reminder-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border)}
+.reminder-item:last-child{border-bottom:none}
+.reminder-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.reminder-info{flex:1}
+.reminder-name{font-size:12px;font-weight:500;color:var(--text)}
+.reminder-date{font-size:10px;color:var(--text3)}
+.reminder-who{font-size:10px;color:var(--text2)}
+.reminder-urgent{color:var(--red-tx);font-weight:600}
+.wa-btn{font-size:10px;padding:3px 8px;border-radius:999px;background:#25d366;color:white;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;flex-shrink:0}
+
+/* PHOTO MODAL */
+.photo-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:10000;align-items:center;justify-content:center;padding:20px}
+.photo-modal.open{display:flex}
+.photo-modal img{max-width:100%;max-height:90vh;border-radius:var(--radius-lg);object-fit:contain}
+.photo-modal-close{position:absolute;top:16px;right:16px;width:36px;height:36px;background:white;border:none;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+
+@media(max-width:640px){
+  .main{flex-direction:column}
+  .sidebar{width:100%;height:auto;max-height:60vh;border-right:none;border-bottom:1px solid var(--border);flex-shrink:0}
+  .map-wrap{height:40vh;flex:none}
+  #map{height:100%}
+  .dashboard{padding:10px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .stats-overlay{top:6px;right:6px;padding:5px 7px;gap:5px}
+  .stat-n{font-size:12px}
+  .app-name{display:none}
+  .tab-btn{font-size:10px;padding:3px 7px}
+}
+.visits-panel::-webkit-scrollbar,.dashboard::-webkit-scrollbar{width:3px}
+.visits-panel::-webkit-scrollbar-thumb,.dashboard::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="overlay" id="login-screen">
+  <div class="card">
+    <div class="card-logo"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+    <h1>Sales Visit Tracker</h1>
+    <p>Log in to access your visits</p>
+    <div class="field"><label>Username</label><input type="text" id="login-user" placeholder="Enter your username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"/></div>
+    <div class="field"><label>Password</label><input type="password" id="login-pass" placeholder="Enter your password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+    <div class="login-err" id="login-err"></div>
+    <button class="primary-btn" onclick="doLogin()">Log in</button>
+    <button class="secondary-btn" onclick="showSetup()">⚙ Connect to Google Sheets</button>
+  </div>
+</div>
+
+<!-- SETUP -->
+<div class="overlay hidden" id="setup-screen">
+  <div class="card">
+    <div class="card-logo"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+    <h1>Connect Google Sheets</h1>
+    <p>One-time setup — 3 minutes</p>
+    <div class="setup-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body">Open <a href="https://sheets.google.com" target="_blank">Google Sheets</a> → create a <strong>blank spreadsheet</strong> → name it "Sales Visits"</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-body">Click <strong>Extensions → Apps Script</strong> → delete all code → paste the <strong>apps-script.gs</strong> file → Save</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-body">Click <strong>Deploy → New deployment</strong> → Type: <strong>Web app</strong> → Execute as: <strong>Me</strong> → Who has access: <strong>Anyone</strong> → Deploy → copy the URL</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-body">Paste the URL below and click Connect</div></div>
+    </div>
+    <div class="field">
+      <label>Apps Script Web App URL</label>
+      <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/…/exec"/>
+      <div class="s-hint" id="setup-hint">Paste the URL from step 3</div>
+    </div>
+    <button class="primary-btn" onclick="connectSheet()">Connect & save</button>
+    <button class="secondary-btn" onclick="backToLogin()">← Back to login</button>
+  </div>
+</div>
+
+<!-- PHOTO MODAL -->
+<div class="photo-modal" id="photo-modal" onclick="closePhotoModal()">
+  <button class="photo-modal-close" onclick="closePhotoModal()">✕</button>
+  <img id="modal-img" src="" alt="Site photo"/>
+</div>
+
+<!-- APP -->
+<header>
+  <div class="hd-left">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+    <span class="app-name">Sales Tracker</span>
+    <span class="user-badge" id="user-badge"></span>
+  </div>
+  <div class="hd-right">
+    <button class="tab-btn active" id="tab-map" onclick="switchTab('map')">🗺 Map</button>
+    <button class="tab-btn" id="tab-dash" onclick="switchTab('dash')">📊 Dashboard</button>
+    <div class="sync-pill" id="sync-pill">connecting…</div>
+    <button class="icon-btn" onclick="exportCSV()" title="Export CSV">⬇</button>
+    <button class="icon-btn" onclick="logout()" title="Log out">🚪</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="legend">
+      <div class="leg"><div class="ldot" style="background:#2563eb"></div>First</div>
+      <div class="leg"><div class="ldot" style="background:#d97706"></div>Follow-up</div>
+      <div class="leg"><div class="ldot" style="background:#16a34a"></div>Won</div>
+      <div class="leg"><div class="ldot" style="background:#dc2626"></div>Lost</div>
+    </div>
+
+    <div class="admin-filter" id="admin-filter">
+      <label>👑 Admin — filter by:</label>
+      <select id="filter-user" onchange="applyFilter()">
+        <option value="all">All salespeople</option>
+        <option value="admin">Admin (me)</option>
+        <option value="aziz">Aziz</option>
+        <option value="daniel">Daniel</option>
+        <option value="nelson">Nelson</option>
+      </select>
+    </div>
+
+    <div class="form-panel" id="form-panel">
+      <div class="panel-title">New visit</div>
+      <div class="f"><label>Project / client name</label><input type="text" id="f-name" placeholder="e.g. Accra Mall Extension"/></div>
+      <div class="f"><label>Client phone number</label><input type="tel" id="f-phone" placeholder="e.g. +233 24 000 0000"/></div>
+      <div class="f">
+        <label>Location</label>
+        <div class="loc-row">
+          <input type="text" id="f-loc" placeholder="e.g. Tema, Ghana" onkeydown="if(event.key==='Enter')addVisit()"/>
+          <button class="gps-btn" onclick="useMyLocation()" id="gps-btn" title="Use my current location">📍</button>
+        </div>
+        <div class="geo-hint" id="geo-hint"></div>
+      </div>
+      <div class="f-row">
+        <div class="f"><label>Visit date</label><input type="date" id="f-date"/></div>
+        <div class="f"><label>Project value ($)</label><input type="number" id="f-value" placeholder="e.g. 50000"/></div>
+      </div>
+      <div class="f">
+        <label>Status</label>
+        <div class="status-grid">
+          <button class="sbtn sel-first" onclick="selStatus('first',this)"><div class="sdot" style="background:#2563eb"></div>First visit</button>
+          <button class="sbtn" onclick="selStatus('followup',this)"><div class="sdot" style="background:#d97706"></div>Follow-up</button>
+          <button class="sbtn" onclick="selStatus('won',this)"><div class="sdot" style="background:#16a34a"></div>Won</button>
+          <button class="sbtn" onclick="selStatus('lost',this)"><div class="sdot" style="background:#dc2626"></div>Lost</button>
+        </div>
+      </div>
+      <div class="f" id="reminder-field">
+        <label>Follow-up reminder date</label>
+        <input type="date" id="f-reminder"/>
+      </div>
+      <div class="f"><label>Notes</label><textarea id="f-notes" placeholder="Meeting notes, contacts, next steps…"></textarea></div>
+      <div class="f">
+        <label>Site photo</label>
+        <div class="photo-upload" onclick="document.getElementById('f-photo').click()">
+          <input type="file" id="f-photo" accept="image/*" onchange="previewPhoto(this)"/>
+          <span style="font-size:11px;color:var(--text3)">📷 Tap to take or upload photo</span>
+          <img id="photo-preview" class="photo-preview" alt="preview"/>
+        </div>
+      </div>
+      <button class="add-btn" id="add-btn" onclick="addVisit()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Add to map
+      </button>
+    </div>
+
+    <div class="visits-panel">
+      <div class="vp-header"><span id="list-title">Visits (<span id="vc">0</span>)</span></div>
+      <div id="vlist"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- MAP VIEW -->
+  <div class="map-wrap" id="map-view">
+    <div id="map"></div>
+    <div class="stats-overlay">
+      <div class="stat"><div class="stat-n" id="s-t">0</div><div class="stat-l">total</div></div>
+      <div class="stat"><div class="stat-n" style="color:#2563eb" id="s-f">0</div><div class="stat-l">first</div></div>
+      <div class="stat"><div class="stat-n" style="color:#d97706" id="s-fu">0</div><div class="stat-l">follow</div></div>
+      <div class="stat"><div class="stat-n" style="color:#16a34a" id="s-w">0</div><div class="stat-l">won</div></div>
+      <div class="stat"><div class="stat-n" style="color:#dc2626" id="s-l">0</div><div class="stat-l">lost</div></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div class="dashboard" id="dash-view">
+    <div class="dash-title">Performance Dashboard</div>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-n" id="d-total">0</div><div class="kpi-l">Total visits</div></div>
+      <div class="kpi"><div class="kpi-n" style="color:var(--green)" id="d-won">0</div><div class="kpi-l">Deals won</div></div>
+      <div class="kpi"><div class="kpi-n" style="color:var(--blue)" id="d-pipeline">$0</div><div class="kpi-l">Pipeline value</div></div>
+      <div class="kpi"><div class="kpi-n" style="color:var(--green)" id="d-closed">$0</div><div class="kpi-l">Won value</div></div>
+    </div>
+
+    <div class="pipeline-card">
+      <h3>Team performance</h3>
+      <div id="team-bars"></div>
+    </div>
+
+    <div class="reminder-section" id="reminder-section">
+      <h3>🔔 Upcoming follow-ups</h3>
+      <div id="reminders-list"><div style="font-size:12px;color:var(--text3);padding:8px 0">No upcoming follow-ups.</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const USERS={
+  'admin':  {password:'haiflow',  role:'admin', display:'Admin 👑'},
+  'aziz':   {password:'aziz123',  role:'sales', display:'Aziz'},
+  'daniel': {password:'daniel321',role:'sales', display:'Daniel'},
+  'nelson': {password:'nelson213',role:'sales', display:'Nelson'}
+};
+
+const SC={
+  first:   {color:'#2563eb',label:'First visit',bg:'#eff6ff',tx:'#1d4ed8'},
+  followup:{color:'#d97706',label:'Follow-up',  bg:'#fffbeb',tx:'#92400e'},
+  won:     {color:'#16a34a',label:'Won',         bg:'#f0fdf4',tx:'#15803d'},
+  lost:    {color:'#dc2626',label:'Lost',        bg:'#fef2f2',tx:'#b91c1c'}
+};
+
+const CFG_KEY='svt-url-v2';
+let SCRIPT_URL=localStorage.getItem(CFG_KEY)||'';
+let currentUser=null,allVisits=[],displayedVisits=[],markers={},nextId=1,selSt='first',map,photoData='',currentTab='map';
+
+/* ── Screens ── */
+function showLogin(){document.getElementById('login-screen').classList.remove('hidden');document.getElementById('setup-screen').classList.add('hidden');}
+function showSetup(){document.getElementById('setup-screen').classList.remove('hidden');document.getElementById('login-screen').classList.add('hidden');if(SCRIPT_URL)document.getElementById('script-url').value=SCRIPT_URL;}
+function backToLogin(){document.getElementById('setup-screen').classList.add('hidden');document.getElementById('login-screen').classList.remove('hidden');}
+
+function doLogin(){
+  const u=document.getElementById('login-user').value.trim().toLowerCase();
+  const p=document.getElementById('login-pass').value;
+  const err=document.getElementById('login-err');
+  const user=USERS[u];
+  if(!user||user.password!==p){err.textContent='Incorrect username or password.';return;}
+  if(!SCRIPT_URL){err.textContent='';showSetup();return;}
+  err.textContent='';
+  currentUser={key:u,...user};
+  document.getElementById('login-screen').classList.add('hidden');
+  const badge=document.getElementById('user-badge');
+  badge.textContent=user.display;
+  badge.className='user-badge '+(user.role==='admin'?'admin':'sales');
+  if(user.role==='admin'){
+    document.getElementById('admin-filter').style.display='block';
+  } else {
+    document.getElementById('admin-filter').style.display='none';
+  }
+  document.getElementById('f-date').value=new Date().toISOString().slice(0,10);
+  loadAll();
+}
+
+function logout(){
+  currentUser=null;clearMarkers();allVisits=[];displayedVisits=[];
+  renderList();updateStats();
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
+  document.getElementById('login-err').textContent='';
+  showLogin();
+}
+
+function connectSheet(){
+  const url=document.getElementById('script-url').value.trim();
+  const hint=document.getElementById('setup-hint');
+  if(!url||!url.startsWith('https://script.google.com')){hint.textContent='Please paste a valid Apps Script URL.';hint.className='s-hint err';return;}
+  SCRIPT_URL=url;localStorage.setItem(CFG_KEY,url);
+  hint.textContent='Connected!';hint.className='s-hint ok';
+  setTimeout(()=>backToLogin(),1000);
+}
+
+/* ── Tabs ── */
+function switchTab(t){
+  currentTab=t;
+  document.getElementById('tab-map').classList.toggle('active',t==='map');
+  document.getElementById('tab-dash').classList.toggle('active',t==='dash');
+  document.getElementById('map-view').style.display=t==='map'?'':'none';
+  document.getElementById('dash-view').classList.toggle('visible',t==='dash');
+  if(t==='dash') renderDashboard();
+  if(t==='map') setTimeout(()=>map.invalidateSize(),100);
+}
+
+/* ── Status reminder field toggle ── */
+function selStatus(s,btn){
+  selSt=s;
+  document.querySelectorAll('.sbtn').forEach(b=>b.className='sbtn');
+  btn.className='sbtn sel-'+s;
+  document.getElementById('reminder-field').style.display=s==='followup'?'block':'none';
+}
+
+/* ── Photo ── */
+function previewPhoto(input){
+  if(!input.files||!input.files[0])return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    photoData=e.target.result;
+    const prev=document.getElementById('photo-preview');
+    prev.src=photoData;prev.style.display='block';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+function openPhotoModal(src){
+  document.getElementById('modal-img').src=src;
+  document.getElementById('photo-modal').classList.add('open');
+}
+function closePhotoModal(){document.getElementById('photo-modal').classList.remove('open');}
+
+/* ── Sync pill ── */
+function syncPill(s,msg){
+  const el=document.getElementById('sync-pill');
+  el.className='sync-pill '+(s==='ok'?'synced':s==='err'?'error':s==='syncing'?'syncing':'');
+  el.textContent=msg||s;
+}
+
+/* ── API ── */
+async function api(params){
+  const qs=new URLSearchParams(params).toString();
+  const r=await fetch(SCRIPT_URL+'?'+qs);
+  return r.json();
+}
+
+/* ── Map ── */
+function initMap(){
+  map=L.map('map').setView([5.6037,-0.1870],7);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{attribution:'',maxZoom:19}).addTo(map);
+}
+
+function makeIcon(color){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36"><path d="M14 0C6.27 0 0 6.27 0 14c0 9.33 14 22 14 22S28 23.33 28 14C28 6.27 21.73 0 14 0z" fill="${color}" stroke="white" stroke-width="2"/><circle cx="14" cy="14" r="5.5" fill="white"/></svg>`;
+  return L.divIcon({html:svg,iconSize:[28,36],iconAnchor:[14,36],popupAnchor:[0,-38],className:''});
+}
+
+function addMarker(v){
+  const cfg=SC[v.status]||SC.first;
+  const valStr=v.value?'<div style="font-size:10px;color:#16a34a;font-weight:600;margin-top:3px">💰 $'+Number(v.value).toLocaleString()+'</div>':'';
+  const phoneStr=v.phone?'<div style="font-size:10px;color:#6b6560;margin-top:2px">📞 '+v.phone+'</div>':'';
+  const imgStr=v.photo?`<img src="${v.photo}" style="width:100%;max-height:80px;object-fit:cover;border-radius:6px;margin-top:6px;cursor:pointer" onclick="openPhotoModal('${v.photo}')"/>`:'';
+  const waStr=v.phone?`<br><button onclick="window.open('https://wa.me/'+('${v.phone}'.replace(/[^0-9]/g,'')))" style="margin-top:6px;padding:3px 10px;background:#25d366;color:white;border:none;border-radius:999px;font-size:10px;cursor:pointer;font-weight:500">WhatsApp</button>`:'';
+  const m=L.marker([v.lat,v.lng],{icon:makeIcon(cfg.color)}).addTo(map);
+  m.bindPopup(`<div style="font-family:'DM Sans',sans-serif;min-width:160px"><div style="font-size:13px;font-weight:600;color:#1a1815;margin-bottom:4px">${v.name}</div><div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;background:${cfg.bg};color:${cfg.tx};margin-bottom:4px">${cfg.label}</div>${valStr}${phoneStr}<div style="font-size:10px;color:#6b6560;margin-top:2px">${v.loc}</div>${v.notes?`<div style="font-size:10px;color:#9c9690;margin-top:2px;font-style:italic">${v.notes}</div>`:''}<div style="font-size:9px;color:#9c9690;margin-top:3px">${v.date} · ${v.salesperson}</div>${imgStr}${waStr}</div>`);
+  markers[v.id]=m;
+}
+function removeMarker(id){if(markers[id]){map.removeLayer(markers[id]);delete markers[id];}}
+function clearMarkers(){Object.keys(markers).forEach(id=>removeMarker(id));}
+
+/* ── Load ── */
+async function loadAll(){
+  syncPill('syncing','loading…');
+  try{
+    const d=await api({action:'getAll'});
+    if(!d.ok)throw new Error();
+    allVisits=d.rows.map(r=>({
+      id:String(r.ID),name:r.Name,loc:r.Location,status:r.Status,
+      notes:r.Notes||'',date:r.Date,lat:parseFloat(r.Lat),lng:parseFloat(r.Lng),
+      salesperson:r.Salesperson||'',phone:r.Phone||'',
+      value:r.Value||'',reminder:r.Reminder||'',photo:r.Photo||''
+    })).filter(v=>!isNaN(v.lat));
+    nextId=allVisits.length?Math.max(...allVisits.map(v=>parseInt(v.id)||0))+1:1;
+    applyFilter();
+    syncPill('ok','synced');
+  }catch(e){syncPill('err','sync error');}
+}
+
+function applyFilter(){
+  clearMarkers();
+  if(currentUser.role==='admin'){
+    const sel=document.getElementById('filter-user').value;
+    displayedVisits=sel==='all'?[...allVisits]:allVisits.filter(v=>v.salesperson.toLowerCase()===sel);
+  } else {
+    displayedVisits=allVisits.filter(v=>v.salesperson.toLowerCase()===currentUser.key);
+  }
+  displayedVisits.forEach(v=>addMarker(v));
+  if(displayedVisits.length){map.fitBounds(L.latLngBounds(displayedVisits.map(v=>[v.lat,v.lng])),{padding:[40,40],maxZoom:13});}
+  renderList();updateStats();
+  if(currentTab==='dash')renderDashboard();
+}
+
+/* ── Geocode ── */
+async function geocode(q){
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,{headers:{'Accept-Language':'en'}});
+  const d=await r.json();
+  return d&&d.length?{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon),display:d[0].display_name}:null;
+}
+
+/* ── GPS ── */
+async function useMyLocation(){
+  const hint=document.getElementById('geo-hint'),btn=document.getElementById('gps-btn');
+  if(!navigator.geolocation){hint.textContent='GPS not supported.';hint.className='geo-hint err';return;}
+  btn.textContent='⏳';hint.textContent='Getting your location…';hint.className='geo-hint';
+  navigator.geolocation.getCurrentPosition(async function(pos){
+    const lat=pos.coords.latitude,lng=pos.coords.longitude;
+    try{
+      const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lng,{headers:{'Accept-Language':'en'}});
+      const d=await r.json();
+      const address=d.display_name?d.display_name.split(',').slice(0,3).join(', '):lat+', '+lng;
+      document.getElementById('f-loc').value=address;
+      hint.textContent='✓ '+address;hint.className='geo-hint ok';
+    }catch(e){document.getElementById('f-loc').value=lat+', '+lng;hint.textContent='✓ Got coordinates';hint.className='geo-hint ok';}
+    btn.textContent='📍';
+  },function(){hint.textContent='Could not get location. Please allow location access.';hint.className='geo-hint err';btn.textContent='📍';},{enableHighAccuracy:true,timeout:10000});
+}
+
+/* ── Add visit ── */
+async function addVisit(){
+  const name=document.getElementById('f-name').value.trim();
+  const loc=document.getElementById('f-loc').value.trim();
+  const phone=document.getElementById('f-phone').value.trim();
+  const notes=document.getElementById('f-notes').value.trim();
+  const value=document.getElementById('f-value').value.trim();
+  const reminder=document.getElementById('f-reminder').value;
+  const date=document.getElementById('f-date').value||new Date().toISOString().slice(0,10);
+  const hint=document.getElementById('geo-hint'),btn=document.getElementById('add-btn');
+  if(!name){document.getElementById('f-name').focus();return;}
+  if(!loc){document.getElementById('f-loc').focus();return;}
+  btn.disabled=true;btn.textContent='Finding location…';
+  hint.textContent='Searching…';hint.className='geo-hint';
+  const coords=await geocode(loc);
+  if(!coords){hint.textContent='Location not found.';hint.className='geo-hint err';btn.disabled=false;btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add to map';return;}
+  hint.textContent='✓ '+coords.display.split(',').slice(0,3).join(', ');hint.className='geo-hint ok';
+  const id=String(nextId++);
+  const formattedDate=new Date(date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  syncPill('syncing','saving…');
+  try{
+    await api({action:'add',id,name,loc,status:selSt,notes,date:formattedDate,lat:coords.lat,lng:coords.lng,salesperson:currentUser.key,phone,value,reminder,photo:photoData});
+    const v={id,name,loc,notes,status:selSt,lat:coords.lat,lng:coords.lng,date:formattedDate,salesperson:currentUser.key,phone,value,reminder,photo:photoData};
+    allVisits.push(v);displayedVisits.push(v);addMarker(v);
+    map.flyTo([v.lat,v.lng],Math.max(map.getZoom(),12),{duration:1.2});
+    document.getElementById('f-name').value='';document.getElementById('f-loc').value='';
+    document.getElementById('f-notes').value='';document.getElementById('f-value').value='';
+    document.getElementById('f-phone').value='';document.getElementById('f-reminder').value='';
+    document.getElementById('f-photo').value='';document.getElementById('photo-preview').style.display='none';
+    photoData='';
+    renderList();updateStats();syncPill('ok','saved ✓');
+    if(currentTab==='map'){switchTab('map');}
+  }catch(e){syncPill('err','save failed');}
+  btn.disabled=false;btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add to map';
+  setTimeout(()=>{hint.textContent='';hint.className='geo-hint';},3500);
+}
+
+/* ── Delete / change status ── */
+async function deleteVisit(id){
+  if(!confirm('Remove this visit?'))return;
+  syncPill('syncing','deleting…');
+  try{await api({action:'delete',id});}catch(e){}
+  allVisits=allVisits.filter(v=>v.id!==id);displayedVisits=displayedVisits.filter(v=>v.id!==id);
+  removeMarker(id);renderList();updateStats();syncPill('ok','synced');
+  if(currentTab==='dash')renderDashboard();
+}
+async function changeStatus(id,newStatus){
+  const v=allVisits.find(x=>x.id===id);if(!v)return;
+  v.status=newStatus;removeMarker(id);addMarker(v);
+  renderList();updateStats();
+  syncPill('syncing','updating…');
+  try{await api({action:'updateStatus',id,status:newStatus});syncPill('ok','synced');}
+  catch(e){syncPill('err','update failed');}
+  document.getElementById('sp-'+id)?.classList.remove('open');
+  if(currentTab==='dash')renderDashboard();
+}
+
+/* ── Focus ── */
+function focusVisit(id){
+  const v=allVisits.find(x=>x.id===id);if(!v)return;
+  switchTab('map');
+  setTimeout(()=>{
+    map.flyTo([v.lat,v.lng],14,{duration:1});
+    setTimeout(()=>{if(markers[id])markers[id].openPopup();},1100);
+    document.querySelectorAll('.vcard').forEach(c=>c.classList.remove('active'));
+    document.getElementById('vcard-'+id)?.classList.add('active');
+  },100);
+}
+function togglePopup(id,e){
+  e.stopPropagation();
+  const el=document.getElementById('sp-'+id);if(!el)return;
+  const open=el.classList.contains('open');
+  document.querySelectorAll('.status-popup').forEach(p=>p.classList.remove('open'));
+  if(!open)el.classList.add('open');
+}
+document.addEventListener('click',()=>document.querySelectorAll('.status-popup').forEach(p=>p.classList.remove('open')));
+
+/* ── Render list ── */
+function renderList(){
+  const c=document.getElementById('vlist');
+  document.getElementById('vc').textContent=displayedVisits.length;
+  if(!displayedVisits.length){c.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>No visits yet.</div>`;return;}
+  const isAdmin=currentUser&&currentUser.role==='admin';
+  const today=new Date();today.setHours(0,0,0,0);
+  c.innerHTML=[...displayedVisits].reverse().map(v=>{
+    const cfg=SC[v.status]||SC.first;
+    const canEdit=isAdmin||v.salesperson===currentUser.key;
+    let reminderHtml='';
+    if(v.reminder){
+      const rd=new Date(v.reminder);rd.setHours(0,0,0,0);
+      const diff=Math.ceil((rd-today)/(1000*60*60*24));
+      const urgent=diff<=2;
+      reminderHtml=`<div class="vcard-reminder ${urgent?'reminder-urgent':''}">🔔 Follow-up: ${new Date(v.reminder).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}${diff<=0?' (overdue!)':diff<=2?' (soon!)':''}</div>`;
+    }
+    return `<div class="vcard" id="vcard-${v.id}" onclick="focusVisit('${v.id}')">
+      <div class="vcard-top"><div class="vcard-name">${v.name}</div><span class="badge" style="background:${cfg.bg};color:${cfg.tx}">${cfg.label}</span></div>
+      <div class="vcard-loc">📍 ${v.loc}</div>
+      ${v.phone?`<div class="vcard-loc">📞 ${v.phone}</div>`:''}
+      ${v.value?`<div class="vcard-value">💰 $${Number(v.value).toLocaleString()}</div>`:''}
+      ${reminderHtml}
+      ${v.notes?`<div class="vcard-note">${v.notes}</div>`:''}
+      <div class="vcard-meta">${v.date}${isAdmin?' · '+v.salesperson:''}</div>
+      ${v.photo?`<img class="vcard-img" src="${v.photo}" style="display:block" onclick="event.stopPropagation();openPhotoModal('${v.photo}')" alt="site photo"/>`:''}
+      ${canEdit?`<div class="vcard-actions">
+        <button class="va-btn" onclick="togglePopup('${v.id}',event)">Update ▾</button>
+        ${v.phone?`<button class="wa-btn" onclick="event.stopPropagation();window.open('https://wa.me/'+('${v.phone}'.replace(/[^0-9]/g,'')))">WhatsApp</button>`:''}
+        <button class="va-btn del" onclick="event.stopPropagation();deleteVisit('${v.id}')">Remove</button>
+        <div class="status-popup" id="sp-${v.id}" onclick="event.stopPropagation()">
+          ${Object.entries(SC).map(([k,cfg])=>`<button class="sp-btn" onclick="changeStatus('${v.id}','${k}')"><div style="width:7px;height:7px;border-radius:50%;background:${cfg.color};flex-shrink:0"></div>${cfg.label}</button>`).join('')}
+        </div>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ── Stats ── */
+function updateStats(){
+  const v=displayedVisits;
+  document.getElementById('s-t').textContent=v.length;
+  document.getElementById('s-f').textContent=v.filter(x=>x.status==='first').length;
+  document.getElementById('s-fu').textContent=v.filter(x=>x.status==='followup').length;
+  document.getElementById('s-w').textContent=v.filter(x=>x.status==='won').length;
+  document.getElementById('s-l').textContent=v.filter(x=>x.status==='lost').length;
+}
+
+/* ── Dashboard ── */
+function renderDashboard(){
+  const source=currentUser.role==='admin'?allVisits:displayedVisits;
+  const total=source.length;
+  const won=source.filter(v=>v.status==='won').length;
+  const pipeline=source.reduce((s,v)=>s+(parseFloat(v.value)||0),0);
+  const closed=source.filter(v=>v.status==='won').reduce((s,v)=>s+(parseFloat(v.value)||0),0);
+  document.getElementById('d-total').textContent=total;
+  document.getElementById('d-won').textContent=won;
+  document.getElementById('d-pipeline').textContent='$'+pipeline.toLocaleString();
+  document.getElementById('d-closed').textContent='$'+closed.toLocaleString();
+
+  const people=currentUser.role==='admin'?['admin','aziz','daniel','nelson']:[currentUser.key];
+  const bars=document.getElementById('team-bars');
+  bars.innerHTML=people.map(p=>{
+    const pv=allVisits.filter(v=>v.salesperson===p);
+    const pFirst=pv.filter(v=>v.status==='first').length;
+    const pFu=pv.filter(v=>v.status==='followup').length;
+    const pWon=pv.filter(v=>v.status==='won').length;
+    const pLost=pv.filter(v=>v.status==='lost').length;
+    const pVal=pv.filter(v=>v.status==='won').reduce((s,v)=>s+(parseFloat(v.value)||0),0);
+    const max=Math.max(pv.length,1);
+    const name=USERS[p]?.display||p;
+    return `<div class="person-row">
+      <div class="person-name">${name}</div>
+      <div class="person-bars">
+        ${pFirst?`<div class="mini-bar" style="background:#2563eb;width:${Math.max(pFirst/max*120,16)}px">${pFirst}</div>`:''}
+        ${pFu?`<div class="mini-bar" style="background:#d97706;width:${Math.max(pFu/max*120,16)}px">${pFu}</div>`:''}
+        ${pWon?`<div class="mini-bar" style="background:#16a34a;width:${Math.max(pWon/max*120,16)}px">${pWon}</div>`:''}
+        ${pLost?`<div class="mini-bar" style="background:#dc2626;width:${Math.max(pLost/max*120,16)}px">${pLost}</div>`:''}
+        ${!pv.length?`<span style="font-size:11px;color:var(--text3)">No visits yet</span>`:''}
+      </div>
+      <div class="person-value">${pVal?'$'+pVal.toLocaleString():''}</div>
+    </div>`;
+  }).join('');
+
+  const today=new Date();today.setHours(0,0,0,0);
+  const upcoming=source.filter(v=>v.reminder).map(v=>{
+    const rd=new Date(v.reminder);rd.setHours(0,0,0,0);
+    return {...v,rdObj:rd,diff:Math.ceil((rd-today)/(1000*60*60*24))};
+  }).sort((a,b)=>a.rdObj-b.rdObj).slice(0,10);
+
+  const rl=document.getElementById('reminders-list');
+  if(!upcoming.length){rl.innerHTML=`<div style="font-size:12px;color:var(--text3);padding:8px 0">No upcoming follow-ups.</div>`;return;}
+  rl.innerHTML=upcoming.map(v=>{
+    const cfg=SC[v.status]||SC.first;
+    const urgent=v.diff<=2;
+    const dateLabel=v.diff<0?'Overdue!':v.diff===0?'Today':v.diff===1?'Tomorrow':new Date(v.reminder).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+    return `<div class="reminder-item">
+      <div class="reminder-dot" style="background:${cfg.color}"></div>
+      <div class="reminder-info">
+        <div class="reminder-name">${v.name}</div>
+        <div class="reminder-date ${urgent?'reminder-urgent':{}}">🔔 ${dateLabel}</div>
+        <div class="reminder-who">${v.salesperson}${v.phone?' · '+v.phone:''}</div>
+      </div>
+      ${v.phone?`<button class="wa-btn" onclick="window.open('https://wa.me/'+('${v.phone}'.replace(/[^0-9]/g,'')))">WhatsApp</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ── Export ── */
+function exportCSV(){
+  const source=currentUser.role==='admin'?allVisits:displayedVisits;
+  if(!source.length){alert('No visits to export.');return;}
+  const rows=[['ID','Name','Location','Status','Notes','Date','Salesperson','Phone','Value','Reminder']];
+  source.forEach(v=>rows.push([v.id,v.name,v.loc,SC[v.status]?.label||v.status,v.notes||'',v.date,v.salesperson,v.phone||'',v.value||'',v.reminder||'']));
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='visits-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+/* ── Boot ── */
+initMap();
+document.getElementById('reminder-field').style.display='none';
+if(!SCRIPT_URL){showSetup();}else{showLogin();}
+</script>
+</body>
+</html>
